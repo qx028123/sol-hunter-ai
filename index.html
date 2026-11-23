@@ -65,14 +65,27 @@
 </main>
 <script>
 const fmt=n=>{if(n===null||n===undefined||!Number.isFinite(Number(n)))return "—";n=Number(n);if(Math.abs(n)>=1e9)return "$"+(n/1e9).toFixed(2)+"B";if(Math.abs(n)>=1e6)return "$"+(n/1e6).toFixed(2)+"M";if(Math.abs(n)>=1e3)return "$"+(n/1e3).toFixed(1)+"K";return "$"+n.toFixed(n<1?6:2)};
-const RPCS=["https://api.mainnet-beta.solana.com","https://solana-rpc.publicnode.com","https://solana.drpc.org"];let radarPairs=[];
+const RPC_PROXY="https://sol-hunter-rpc5.qx028123.workers.dev/rpc";let radarPairs=[];
 async function getJson(url){const r=await fetch(url,{headers:{accept:"application/json"}});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}
-async function rpc(method,params){let last;for(const endpoint of RPCS){try{const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});if(!r.ok)throw Error("RPC HTTP "+r.status);const j=await r.json();if(j.error)throw Error(j.error.message||"RPC error");return j.result}catch(e){last=e}}throw Error("Solana RPC 不可用："+(last?.message||"unknown"))}
+async function rpcRequest(method,params){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ try{
+  const r=await fetch(RPC_PROXY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params}),signal:controller.signal});
+  if(!r.ok)throw Error("RPC Proxy HTTP "+r.status);
+  const j=await r.json();
+  if(j.error)throw Error(j.error.message||"RPC error");
+  if(!Object.prototype.hasOwnProperty.call(j,"result"))throw Error("RPC 返回缺少 result");
+  return j;
+ }catch(e){
+  throw Error(e.name==="AbortError"?"Cloudflare RPC 代理超时":e.message);
+ }finally{clearTimeout(timer)}
+}
+async function rpc(method,params){const j=await rpcRequest(method,params);return j.result;}
 async function scanRadar(){const btn=document.getElementById("scan"),status=document.getElementById("radarStatus"),rows=document.getElementById("radarRows");btn.disabled=true;status.textContent="正在读取 DexScreener…";rows.innerHTML='<tr><td colspan="5" class="empty">加载中…</td></tr>';
 try{const [profiles,boosts]=await Promise.all([getJson("https://api.dexscreener.com/token-profiles/latest/v1"),getJson("https://api.dexscreener.com/token-boosts/latest/v1")]);const all=[...(Array.isArray(profiles)?profiles:[]),...(Array.isArray(boosts)?boosts:[])].filter(x=>x.chainId==="solana"&&x.tokenAddress);const uniq=[...new Map(all.map(x=>[x.tokenAddress,x])).values()].slice(0,30);if(!uniq.length)throw Error("暂未返回 Solana 代币资料");const pairs=await getJson("https://api.dexscreener.com/tokens/v1/solana/"+uniq.map(x=>x.tokenAddress).join(","));radarPairs=Array.isArray(pairs)?pairs.filter(p=>p?.pairAddress):[];updateTripwireSnapshots(radarPairs);const best=new Map();(Array.isArray(pairs)?pairs:[]).forEach(p=>{const a=p.baseToken?.address;if(!a)return;const old=best.get(a);if(!old||Number(p.liquidity?.usd||0)>Number(old.liquidity?.usd||0))best.set(a,p)});const result=uniq.map(t=>({t,p:best.get(t.tokenAddress)})).sort((a,b)=>Number(b.p?.volume?.h24||0)-Number(a.p?.volume?.h24||0));rows.innerHTML="";result.forEach(({t,p})=>{const tr=document.createElement("tr"),a=document.createElement("td"),b=document.createElement("td"),c=document.createElement("td"),d=document.createElement("td");a.className="token";a.textContent=(p?.baseToken?.name||"Token")+" ("+(p?.baseToken?.symbol||"—")+")";const addr=document.createElement("div");addr.className="muted";addr.style.fontSize="10px";addr.textContent=t.tokenAddress;a.appendChild(addr);b.textContent=p?fmt(p.priceUsd)+" / "+fmt(p.marketCap||p.fdv):"暂无交易池数据";c.textContent=p?fmt(p.liquidity?.usd):"—";d.textContent=p?fmt(p.volume?.h24):"—";const e=document.createElement("td");const check=document.createElement("button");check.textContent="检查风险";check.style.cssText="border:1px solid #3b9f7c;background:#12392f;color:#8df0c5;border-radius:8px;padding:7px 9px;font-size:11px;white-space:nowrap";check.onclick=()=>shieldCheck(t.tokenAddress,p?.baseToken?.symbol||p?.baseToken?.name||"Token",check);e.appendChild(check);tr.append(a,b,c,d,e);rows.appendChild(tr)});document.getElementById("found").textContent=result.length;document.getElementById("updated").textContent=new Date().toLocaleTimeString("zh-CN");status.textContent="扫描完成："+uniq.length+" 个 Solana 资料；按返回的 24h 成交量排序。部分代币可能尚无交易池数据。"}catch(e){status.textContent="扫描失败："+e.message+"。可能是网络、跨域限制或公开 API 限流；稍后重试。";rows.innerHTML='<tr><td colspan="5" class="empty">未取得数据，不会自动下单。</td></tr>'}finally{btn.disabled=false}}
 function parsedInfo(account){return account?.data?.parsed?.info||null}
 function pct(n){return Number.isFinite(n)?n.toFixed(2)+"%":"未知"}
-async function rpcDiagnostic(method,params){let errors=[];for(const endpoint of RPCS){try{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params}),signal:controller.signal});clearTimeout(timer);if(!r.ok)throw Error("HTTP "+r.status);const j=await r.json();if(j.error)throw Error(j.error.message||"RPC error");return {result:j.result,endpoint};}catch(e){errors.push(endpoint+"："+(e.name==="AbortError"?"超时":e.message));}}throw Error(errors.join("；")||"所有 RPC 节点均不可用")}
+async function rpcDiagnostic(method,params){const j=await rpcRequest(method,params);return {result:j.result,endpoint:"Cloudflare RPC Proxy (Worker 2.0)"};}
 function rawAmount(value){try{return BigInt(value??"0")}catch{return null}}
 async function shieldCheck(mint,label,button){const box=document.getElementById("shieldResult"),old=button.textContent;button.disabled=true;button.textContent="检查中…";box.textContent="正在逐项查询 Solana RPC 与 RugCheck；每项结果独立显示…";
 const methods=[
