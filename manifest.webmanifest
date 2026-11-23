@@ -1,9 +1,1 @@
-{
-  "name": "SOL HUNTER AI",
-  "short_name": "SOL HUNTER",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#0b1020",
-  "theme_color": "#0b1020",
-  "lang": "zh-CN"
-}
+{"name":"SOL HUNTER AI","short_name":"SOL HUNTER","start_url":"./index.html","display":"standalone","background_color":"#0b1020","theme_color":"#0b1020","lang":"zh-CN"}
