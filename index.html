@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1020"><title>SOL HUNTER AI v0.7</title>
+<meta name="theme-color" content="#0b1020"><title>SOL HUNTER AI v0.7.1</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{--bg:#0b1020;--panel:#121a2d;--line:#26334d;--text:#edf3ff;--muted:#91a0ba;--green:#35d39a;--yellow:#ffc76a;--red:#ff7185}
@@ -61,18 +61,55 @@
 <div class="agent"><div class="agenthead"><b>CONDUCTOR</b><span class="status">● BASIC</span></div><p>当前为前端状态展示，完整调度器待开发。</p></div></section>
 <div class="section"><h2>风险护栏（规划值）</h2><small>实盘前需服务端强制执行</small></div>
 <div class="card"><div class="row"><span class="muted">单笔最大仓位</span><b>5% 权益</b></div><div class="row"><span class="muted">最大同时持仓</span><b>5 个</b></div><div class="row"><span class="muted">最大滑点</span><b>1.5%</b></div><div class="row"><span class="muted">止损参考</span><b>−5%</b></div><div class="row"><span class="muted">提款权限</span><b class="positive">不配置</b></div></div>
-<p class="footer">SOL HUNTER AI · v0.7 · Read-only Radar + On-chain Shield + ORCA Watchlist<br>公开 RPC 可能限流；最近交易解析不保证覆盖所有 DEX / 聚合器。观察钱包信号不是收益证明、审计或买卖建议。</p>
+<p class="footer">SOL HUNTER AI · v0.7.1 · Read-only Radar + On-chain Shield + ORCA Watchlist<br>公开 RPC 可能限流；最近交易解析不保证覆盖所有 DEX / 聚合器。观察钱包信号不是收益证明、审计或买卖建议。</p>
 </main>
 <script>
 const fmt=n=>{if(n===null||n===undefined||!Number.isFinite(Number(n)))return "—";n=Number(n);if(Math.abs(n)>=1e9)return "$"+(n/1e9).toFixed(2)+"B";if(Math.abs(n)>=1e6)return "$"+(n/1e6).toFixed(2)+"M";if(Math.abs(n)>=1e3)return "$"+(n/1e3).toFixed(1)+"K";return "$"+n.toFixed(n<1?6:2)};
-const RPCS=["https://api.mainnet-beta.solana.com","https://solana-rpc.publicnode.com"];let radarPairs=[];
+const RPCS=["https://api.mainnet-beta.solana.com","https://solana-rpc.publicnode.com","https://solana.drpc.org"];let radarPairs=[];
 async function getJson(url){const r=await fetch(url,{headers:{accept:"application/json"}});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}
 async function rpc(method,params){let last;for(const endpoint of RPCS){try{const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});if(!r.ok)throw Error("RPC HTTP "+r.status);const j=await r.json();if(j.error)throw Error(j.error.message||"RPC error");return j.result}catch(e){last=e}}throw Error("Solana RPC 不可用："+(last?.message||"unknown"))}
 async function scanRadar(){const btn=document.getElementById("scan"),status=document.getElementById("radarStatus"),rows=document.getElementById("radarRows");btn.disabled=true;status.textContent="正在读取 DexScreener…";rows.innerHTML='<tr><td colspan="5" class="empty">加载中…</td></tr>';
 try{const [profiles,boosts]=await Promise.all([getJson("https://api.dexscreener.com/token-profiles/latest/v1"),getJson("https://api.dexscreener.com/token-boosts/latest/v1")]);const all=[...(Array.isArray(profiles)?profiles:[]),...(Array.isArray(boosts)?boosts:[])].filter(x=>x.chainId==="solana"&&x.tokenAddress);const uniq=[...new Map(all.map(x=>[x.tokenAddress,x])).values()].slice(0,30);if(!uniq.length)throw Error("暂未返回 Solana 代币资料");const pairs=await getJson("https://api.dexscreener.com/tokens/v1/solana/"+uniq.map(x=>x.tokenAddress).join(","));radarPairs=Array.isArray(pairs)?pairs.filter(p=>p?.pairAddress):[];updateTripwireSnapshots(radarPairs);const best=new Map();(Array.isArray(pairs)?pairs:[]).forEach(p=>{const a=p.baseToken?.address;if(!a)return;const old=best.get(a);if(!old||Number(p.liquidity?.usd||0)>Number(old.liquidity?.usd||0))best.set(a,p)});const result=uniq.map(t=>({t,p:best.get(t.tokenAddress)})).sort((a,b)=>Number(b.p?.volume?.h24||0)-Number(a.p?.volume?.h24||0));rows.innerHTML="";result.forEach(({t,p})=>{const tr=document.createElement("tr"),a=document.createElement("td"),b=document.createElement("td"),c=document.createElement("td"),d=document.createElement("td");a.className="token";a.textContent=(p?.baseToken?.name||"Token")+" ("+(p?.baseToken?.symbol||"—")+")";const addr=document.createElement("div");addr.className="muted";addr.style.fontSize="10px";addr.textContent=t.tokenAddress;a.appendChild(addr);b.textContent=p?fmt(p.priceUsd)+" / "+fmt(p.marketCap||p.fdv):"暂无交易池数据";c.textContent=p?fmt(p.liquidity?.usd):"—";d.textContent=p?fmt(p.volume?.h24):"—";const e=document.createElement("td");const check=document.createElement("button");check.textContent="检查风险";check.style.cssText="border:1px solid #3b9f7c;background:#12392f;color:#8df0c5;border-radius:8px;padding:7px 9px;font-size:11px;white-space:nowrap";check.onclick=()=>shieldCheck(t.tokenAddress,p?.baseToken?.symbol||p?.baseToken?.name||"Token",check);e.appendChild(check);tr.append(a,b,c,d,e);rows.appendChild(tr)});document.getElementById("found").textContent=result.length;document.getElementById("updated").textContent=new Date().toLocaleTimeString("zh-CN");status.textContent="扫描完成："+uniq.length+" 个 Solana 资料；按返回的 24h 成交量排序。部分代币可能尚无交易池数据。"}catch(e){status.textContent="扫描失败："+e.message+"。可能是网络、跨域限制或公开 API 限流；稍后重试。";rows.innerHTML='<tr><td colspan="5" class="empty">未取得数据，不会自动下单。</td></tr>'}finally{btn.disabled=false}}
-function parsedInfo(account){return account?.data?.parsed?.info||null}function pct(n){return Number.isFinite(n)?n.toFixed(2)+"%":"未知"}
-async function shieldCheck(mint,label,button){const box=document.getElementById("shieldResult"),old=button.textContent;button.disabled=true;button.textContent="检查中…";box.textContent="正在并行查询 Solana 链上数据与 RugCheck："+label+"…";
-try{const jobs=await Promise.allSettled([rpc("getAccountInfo",[mint,{encoding:"jsonParsed",commitment:"confirmed"}]),rpc("getTokenSupply",[mint,{commitment:"confirmed"}]),rpc("getTokenLargestAccounts",[mint,{commitment:"confirmed"}]),getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary")]);const mintRes=jobs[0].status==="fulfilled"?jobs[0].value:null,supplyRes=jobs[1].status==="fulfilled"?jobs[1].value:null,largestRes=jobs[2].status==="fulfilled"?jobs[2].value:null,rug=jobs[3].status==="fulfilled"?jobs[3].value:null;const mintInfo=parsedInfo(mintRes?.value),mintAuthority=mintInfo?mintInfo.mintAuthority:null,freezeAuthority=mintInfo?mintInfo.freezeAuthority:null,supply=Number(supplyRes?.value?.uiAmountString??supplyRes?.value?.uiAmount??NaN),largest=largestRes?.value||[];let topSum=0;largest.slice(0,10).forEach(x=>topSum+=Number(x.uiAmountString??x.uiAmount??0));const topPct=supply>0?topSum/supply*100:NaN,risks=Array.isArray(rug?.risks)?rug.risks:[],rugScore=rug?.score_normalised??null,lp=rug?.lpLockedPct;const lines=["Mint 权限："+(mintInfo?(mintAuthority?"仍存在（可增发）":"已撤销/不存在"):"未知"),"Freeze 权限："+(mintInfo?(freezeAuthority?"仍存在（可冻结账户）":"已撤销/不存在"):"未知"),"总供应量："+(supplyRes?String(supplyRes.value.uiAmountString??supplyRes.value.uiAmount):"未知"),"最大 10 个 Token Account 占供应量："+pct(topPct),"样本账户数："+(largestRes?String(largest.length):"未知"),"RugCheck 风险分："+(rugScore===null?"未知":String(rugScore)),"RugCheck LP 锁定比例："+(lp===undefined?"未知":pct(Number(lp))),"RugCheck 风险项："+(rug?" "+risks.length:"未知")];if(risks.length)risks.forEach(r=>lines.push("• "+(r.level||"风险")+"："+(r.name||"未命名")+(r.description?" — "+r.description:"")));box.innerHTML="";const title=document.createElement("div");title.style.fontWeight="750";title.textContent=label+" · SHIELD";const report=document.createElement("div");report.className="report";report.textContent="Mint："+mint+"\n\n"+lines.join("\n");const note=document.createElement("div");note.className="warn";note.textContent="最大 10 个 Token Account 是账户样本，不是按钱包地址聚合的全网前十持有人；未知字段不代表安全。LP、蜜罐及卖出限制仍需独立核验。";box.append(title,report,note)}catch(err){box.textContent="SHIELD 检查失败："+err.message+"；本次结果未知。"}finally{button.disabled=false;button.textContent=old}}
+function parsedInfo(account){return account?.data?.parsed?.info||null}
+function pct(n){return Number.isFinite(n)?n.toFixed(2)+"%":"未知"}
+async function rpcDiagnostic(method,params){let errors=[];for(const endpoint of RPCS){try{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params}),signal:controller.signal});clearTimeout(timer);if(!r.ok)throw Error("HTTP "+r.status);const j=await r.json();if(j.error)throw Error(j.error.message||"RPC error");return {result:j.result,endpoint};}catch(e){errors.push(endpoint+"："+(e.name==="AbortError"?"超时":e.message));}}throw Error(errors.join("；")||"所有 RPC 节点均不可用")}
+function rawAmount(value){try{return BigInt(value??"0")}catch{return null}}
+async function shieldCheck(mint,label,button){const box=document.getElementById("shieldResult"),old=button.textContent;button.disabled=true;button.textContent="检查中…";box.textContent="正在逐项查询 Solana RPC 与 RugCheck；每项结果独立显示…";
+const methods=[
+ ["Mint 账户",()=>rpcDiagnostic("getAccountInfo",[mint,{encoding:"jsonParsed",commitment:"confirmed"}])],
+ ["总供应量",()=>rpcDiagnostic("getTokenSupply",[mint,{commitment:"confirmed"}])],
+ ["最大 Token Account",()=>rpcDiagnostic("getTokenLargestAccounts",[mint,{commitment:"confirmed"}])],
+ ["RugCheck",()=>getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary").then(result=>({result,endpoint:"RugCheck API"}))]
+ ];
+try{
+ const settled=await Promise.allSettled(methods.map(x=>x[1]()));
+ const vals=settled.map(x=>x.status==="fulfilled"?x.value:null),errs=settled.map(x=>x.status==="rejected"?String(x.reason?.message||x.reason):null);
+ const account=vals[0]?.result?.value||null,info=parsedInfo(account),supply=vals[1]?.result?.value||null,largest=vals[2]?.result?.value||null,rug=vals[3]?.result||null;
+ const mintAuthority=info?.mintAuthority,freezeAuthority=info?.freezeAuthority;
+ const rawSupply=rawAmount(supply?.amount),decimals=Number(supply?.decimals);
+ const supplyUi=(rawSupply!==null&&Number.isInteger(decimals))?(Number(rawSupply)/Math.pow(10,decimals)):NaN;
+ const accounts=Array.isArray(largest)?largest:[];let topRaw=0n,amountsValid=true;
+ for(const a of accounts.slice(0,10)){const n=rawAmount(a.amount);if(n===null){amountsValid=false;break;}topRaw+=n;}
+ const topPct=rawSupply!==null&&rawSupply>0n&&amountsValid?Number(topRaw*1000000n/rawSupply)/10000:NaN;
+ const risks=Array.isArray(rug?.risks)?rug.risks:[],rugScore=rug?.score_normalised??null,lp=rug?.lpLockedPct;
+ const lines=[
+  "Mint 权限："+(info?(mintAuthority?"仍存在（可增发）":"已撤销/不存在"):(errs[0]?"未知（"+errs[0]+"）":"未知（账户数据未解析）")),
+  "Freeze 权限："+(info?(freezeAuthority?"仍存在（可冻结账户）":"已撤销/不存在"):(errs[0]?"未知（"+errs[0]+"）":"未知（账户数据未解析）")),
+  "总供应量："+(supply?(Number.isFinite(supplyUi)?supplyUi.toLocaleString("en-US",{maximumFractionDigits:decimals}):supply.amount+"（raw，decimals="+decimals+"）"):("未知"+(errs[1]?"（"+errs[1]+"）":""))),
+  "最大 10 个 Token Account 占供应量："+pct(topPct),
+  "样本账户数："+(Array.isArray(largest)?accounts.length:"未知")+(Array.isArray(largest)&&accounts.length<10?"（不足 10 个，样本不完整）":""),
+  "RugCheck 风险分："+(rugScore===null?"未知":String(rugScore)),
+  "RugCheck LP 锁定比例："+(lp===undefined?"未知":pct(Number(lp))),
+  "RugCheck 风险项："+(rug?String(risks.length):"未知")
+ ];
+ if(risks.length)risks.forEach(r=>lines.push("• "+(r.level||"风险")+"："+(r.name||"未命名")+(r.description?" — "+r.description:"")));
+ const diagnostics=["接口诊断：", "Mint 账户："+(vals[0]?"成功（"+vals[0].endpoint+"；owner="+(account?.owner||"未知")+")":"失败 — "+errs[0]),"总供应量："+(vals[1]?"成功（"+vals[1].endpoint+")":"失败 — "+errs[1]),"最大账户："+(vals[2]?"成功（"+vals[2].endpoint+")":"失败 — "+errs[2]),"RugCheck："+(vals[3]?"成功":"失败 — "+errs[3])];
+ const tokenProgram=account?.owner||"未知";
+ const extensions=Array.isArray(info?.extensions)?info.extensions.map(x=>x.extension).filter(Boolean):[];
+ if(extensions.length)diagnostics.push("Token 扩展："+extensions.join("、"));
+ if(info&&!(["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA","TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBKN1e6Q2W6"]).includes(tokenProgram))diagnostics.push("提示：Mint owner 不是已识别的 SPL Token / Token-2022 程序，请人工核对。");
+ box.innerHTML="";const title=document.createElement("div");title.style.fontWeight="750";title.textContent=label+" · SHIELD";const report=document.createElement("div");report.className="report";report.textContent="Mint："+mint+"\n\n"+lines.join("\n")+"\n\n"+diagnostics.join("\n");const note=document.createElement("div");note.className="warn";note.textContent="最大 10 个 Token Account 是账户样本，不是按钱包地址聚合的全网前十持有人；不足 10 个样本会明确标注。未知字段不代表安全。Token-2022 扩展权限、LP、蜜罐及卖出限制仍需独立核验。";box.append(title,report,note);
+ }catch(err){box.textContent="SHIELD 检查失败："+err.message+"；本次结果未知。"}finally{button.disabled=false;button.textContent=old}}
 
 
 const TRIPWIRE_SNAPSHOT_KEY="sol-hunter-tripwire-snapshot-v1",DEV_WALLET_KEY="sol-hunter-tripwire-addresses-v1";
