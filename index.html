@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>SOL HUNTER AI</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--bg:#0b1020;--panel:#121a2d;--panel2:#172238;--line:#26334d;--text:#edf3ff;--muted:#91a0ba;--green:#35d39a;--yellow:#ffc76a;--red:#ff7185;--blue:#78a9ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1628 60%,#0b1020);color:var(--text);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 14px calc(24px + env(safe-area-inset-bottom))}
+.wrap{max-width:760px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;padding:18px 2px 14px}.brand{font-weight:850;letter-spacing:.8px;font-size:19px}.brand span{color:var(--green)}.pill{font-size:11px;color:var(--yellow);border:1px solid #66502b;background:#302719;padding:6px 9px;border-radius:20px}
+h1{font-size:25px;margin:12px 0 5px}.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.banner{background:#2c2418;border:1px solid #70552a;color:#ffdfa5;padding:11px 13px;border-radius:12px;font-size:12px;line-height:1.5;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.card{background:linear-gradient(145deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:15px;padding:14px;min-width:0}.metric{font-size:22px;font-weight:750;margin-top:6px}.label{color:var(--muted);font-size:12px}.positive{color:var(--green)}.negative{color:var(--red)}
+.section{display:flex;justify-content:space-between;align-items:center;margin:23px 2px 10px}.section h2{font-size:16px;margin:0}.section small{color:var(--muted)}
+.agents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.agent{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px}.agenthead{display:flex;justify-content:space-between;gap:6px;align-items:center}.agent b{font-size:13px;letter-spacing:.3px}.status{font-size:10px;color:var(--green);white-space:nowrap}.agent p{margin:8px 0 0;color:var(--muted);font-size:11px;line-height:1.45}
+.actions{display:flex;gap:9px;margin-top:14px}.btn{border:0;border-radius:12px;padding:13px 14px;font-weight:700;font-size:13px;flex:1}.primary{background:var(--green);color:#062016}.secondary{background:#202d46;color:var(--text);border:1px solid var(--line)}
+.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{text-align:left;padding:10px 6px;border-bottom:1px solid var(--line)}.table th{color:var(--muted);font-weight:500}.muted{color:var(--muted)}
+.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}.row:last-child{border:0}
+.footer{color:#75839d;font-size:11px;line-height:1.5;text-align:center;margin:22px 6px 8px}
+@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}.agents{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="top"><div class="brand">SOL <span>HUNTER</span> AI</div><div class="pill">PAPER MODE · SIMULATION</div></header>
+<h1>控制台</h1><div class="sub">八智能体 Solana 交易工作台 · 中文界面 / English agent names</div>
+<div class="banner"><b>安全提示：</b>当前版本仅展示模拟数据，不连接钱包、不签名、不发送真实交易。所有盈亏和信号均为演示数据，不代表真实市场表现。</div>
+<section class="grid">
+<div class="card"><div class="label">模拟账户余额</div><div class="metric">$1,000.00</div></div>
+<div class="card"><div class="label">今日模拟盈亏</div><div class="metric positive">+$18.42</div></div>
+<div class="card"><div class="label">监控代币</div><div class="metric">61</div></div>
+<div class="card"><div class="label">今日模拟交易</div><div class="metric">12</div></div>
+</section>
+<div class="section"><h2>智能体状态</h2><small>演示状态 · 未连接数据源</small></div>
+<section class="agents">
+<div class="agent"><div class="agenthead"><b>RADAR</b><span class="status">● READY</span></div><p>扫描新交易对、成交量与流动性变化。</p></div>
+<div class="agent"><div class="agenthead"><b>SHIELD</b><span class="status">● READY</span></div><p>检查权限、持仓集中度、LP 与合约风险。</p></div>
+<div class="agent"><div class="agenthead"><b>TRIGGER</b><span class="status">● PAPER</span></div><p>仅生成模拟订单，不会提交链上交易。</p></div>
+<div class="agent"><div class="agenthead"><b>ORCA</b><span class="status">● READY</span></div><p>追踪观察名单钱包与资金流向。</p></div>
+<div class="agent"><div class="agenthead"><b>TRIPWIRE</b><span class="status">● READY</span></div><p>监控开发者钱包与流动性异常。</p></div>
+<div class="agent"><div class="agenthead"><b>HARVEST</b><span class="status">● PAPER</span></div><p>模拟分批止盈、止损和移动止损。</p></div>
+<div class="agent"><div class="agenthead"><b>PULSE</b><span class="status">○ OFFLINE</span></div><p>社交热度分析尚未接入数据源。</p></div>
+<div class="agent"><div class="agenthead"><b>CONDUCTOR</b><span class="status">● READY</span></div><p>协调信号、风险规则与事件日志。</p></div>
+</section>
+<div class="section"><h2>风险护栏</h2><small>初始建议值，可后续调整</small></div>
+<div class="card">
+<div class="row"><span class="muted">单笔最大仓位</span><b>5% 权益</b></div>
+<div class="row"><span class="muted">最大同时持仓</span><b>5 个</b></div>
+<div class="row"><span class="muted">最大滑点</span><b>1.5%</b></div>
+<div class="row"><span class="muted">单笔止损参考</span><b>−5%</b></div>
+<div class="row"><span class="muted">连续亏损暂停</span><b>3 笔</b></div>
+<div class="row"><span class="muted">提款权限</span><b class="positive">不配置</b></div>
+</div>
+<div class="section"><h2>最近模拟信号</h2><small>非真实交易</small></div>
+<div class="card" style="padding:6px 12px">
+<table class="table"><thead><tr><th>代币</th><th>信号</th><th>评分</th><th>状态</th></tr></thead><tbody>
+<tr><td>DEMO1</td><td class="positive">观察买入</td><td>82/100</td><td>待确认</td></tr>
+<tr><td>DEMO2</td><td class="negative">拒绝</td><td>31/100</td><td>持仓集中</td></tr>
+<tr><td>DEMO3</td><td>观察</td><td>67/100</td><td>流动性不足</td></tr>
+</tbody></table></div>
+<div class="actions"><button class="btn primary" onclick="alert('模拟模式已保持开启。此原型不会发送任何真实交易。')">保持模拟模式</button><button class="btn secondary" onclick="alert('真实交易尚未开发或启用。')">真实交易：未启用</button></div>
+<p class="footer">SOL HUNTER AI · Prototype v0.1<br>此页面是本地前端原型。要实现实时扫描、自动交易和 24/7 运行，还需开发后端、接入并验证数据/API 服务，并进行安全测试。</p>
+</main>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script>
+</body></html>
