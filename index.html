@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1020"><title>SOL HUNTER AI v0.7.1</title>
+<meta name="theme-color" content="#0b1020"><title>SOL HUNTER AI v0.7.2</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{--bg:#0b1020;--panel:#121a2d;--line:#26334d;--text:#edf3ff;--muted:#91a0ba;--green:#35d39a;--yellow:#ffc76a;--red:#ff7185}
@@ -61,24 +61,33 @@
 <div class="agent"><div class="agenthead"><b>CONDUCTOR</b><span class="status">● BASIC</span></div><p>当前为前端状态展示，完整调度器待开发。</p></div></section>
 <div class="section"><h2>风险护栏（规划值）</h2><small>实盘前需服务端强制执行</small></div>
 <div class="card"><div class="row"><span class="muted">单笔最大仓位</span><b>5% 权益</b></div><div class="row"><span class="muted">最大同时持仓</span><b>5 个</b></div><div class="row"><span class="muted">最大滑点</span><b>1.5%</b></div><div class="row"><span class="muted">止损参考</span><b>−5%</b></div><div class="row"><span class="muted">提款权限</span><b class="positive">不配置</b></div></div>
-<p class="footer">SOL HUNTER AI · v0.7.1 · Read-only Radar + On-chain Shield + ORCA Watchlist<br>公开 RPC 可能限流；最近交易解析不保证覆盖所有 DEX / 聚合器。观察钱包信号不是收益证明、审计或买卖建议。</p>
+<p class="footer">SOL HUNTER AI · v0.7.2 · Read-only Radar + On-chain Shield + ORCA Watchlist<br>公开 RPC 可能限流；最近交易解析不保证覆盖所有 DEX / 聚合器。观察钱包信号不是收益证明、审计或买卖建议。</p>
 </main>
 <script>
 const fmt=n=>{if(n===null||n===undefined||!Number.isFinite(Number(n)))return "—";n=Number(n);if(Math.abs(n)>=1e9)return "$"+(n/1e9).toFixed(2)+"B";if(Math.abs(n)>=1e6)return "$"+(n/1e6).toFixed(2)+"M";if(Math.abs(n)>=1e3)return "$"+(n/1e3).toFixed(1)+"K";return "$"+n.toFixed(n<1?6:2)};
 const RPC_PROXY="https://sol-hunter-rpc6.qx028123.workers.dev/rpc";let radarPairs=[];
-async function getJson(url){const r=await fetch(url,{headers:{accept:"application/json"}});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}
-async function rpcRequest(method,params){
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
- try{
-  const r=await fetch(RPC_PROXY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params}),signal:controller.signal});
-  if(!r.ok)throw Error("RPC Proxy HTTP "+r.status);
-  const j=await r.json();
-  if(j.error)throw Error(j.error.message||"RPC error");
-  if(!Object.prototype.hasOwnProperty.call(j,"result"))throw Error("RPC 返回缺少 result");
-  return j;
- }catch(e){
-  throw Error(e.name==="AbortError"?"Cloudflare RPC 代理超时":e.message);
- }finally{clearTimeout(timer)}
+async function getJson(url){const r=await fetch(url,{headers:{accept:"application/json"}});if(!r.ok)throw Error("HTTP "+r.status);return r.json()}async function rpcRequest(method,params){
+ let lastError=null;
+ for(let attempt=0;attempt<3;attempt++){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+  try{
+   const r=await fetch(RPC_PROXY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params}),signal:controller.signal});
+   if(!r.ok){
+    const err=Error("RPC Proxy HTTP "+r.status);
+    if(r.status===502||r.status===503||r.status===504){lastError=err;if(attempt<2){await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));continue}}
+    throw err;
+   }
+   const j=await r.json();
+   if(j.error)throw Error(j.error.message||"RPC error");
+   if(!Object.prototype.hasOwnProperty.call(j,"result"))throw Error("RPC 返回缺少 result");
+   return j;
+  }catch(e){
+   lastError=Error(e.name==="AbortError"?"Cloudflare RPC 代理超时":e.message);
+   if(attempt<2&&(e.name==="AbortError"||/Failed to fetch|NetworkError/i.test(e.message||""))){await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));continue}
+   throw lastError;
+  }finally{clearTimeout(timer)}
+ }
+ throw lastError||Error("RPC 请求失败");
 }
 async function rpc(method,params){const j=await rpcRequest(method,params);return j.result;}
 async function scanRadar(){const btn=document.getElementById("scan"),status=document.getElementById("radarStatus"),rows=document.getElementById("radarRows");btn.disabled=true;status.textContent="正在读取 DexScreener…";rows.innerHTML='<tr><td colspan="5" class="empty">加载中…</td></tr>';
@@ -95,9 +104,12 @@ const methods=[
  ["RugCheck",()=>getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary").then(result=>({result,endpoint:"RugCheck API"}))]
  ];
 try{
- const settled=await Promise.allSettled(methods.map(x=>x[1]()));
+ const settled=[];
+ // 顺序请求，避免同时打到公开 RPC；遇到 502/503/504 时 rpcRequest 会自动重试。
+ for(const item of methods){try{settled.push({status:"fulfilled",value:await item[1]()})}catch(error){settled.push({status:"rejected",reason:error})}}
  const vals=settled.map(x=>x.status==="fulfilled"?x.value:null),errs=settled.map(x=>x.status==="rejected"?String(x.reason?.message||x.reason):null);
- const account=vals[0]?.result?.value||null,info=parsedInfo(account),supply=vals[1]?.result?.value||null,largest=vals[2]?.result?.value||null,rug=vals[3]?.result||null;const mintAuthority=info?.mintAuthority,freezeAuthority=info?.freezeAuthority;
+ const account=vals[0]?.result?.value||null,info=parsedInfo(account),supply=vals[1]?.result?.value||null,largest=vals[2]?.result?.value||null,rug=vals[3]?.result||null;
+ const mintAuthority=info?.mintAuthority,freezeAuthority=info?.freezeAuthority;
  const rawSupply=rawAmount(supply?.amount),decimals=Number(supply?.decimals);
  const supplyUi=(rawSupply!==null&&Number.isInteger(decimals))?(Number(rawSupply)/Math.pow(10,decimals)):NaN;
  const accounts=Array.isArray(largest)?largest:[];let topRaw=0n,amountsValid=true;
@@ -119,7 +131,7 @@ try{
  const tokenProgram=account?.owner||"未知";
  const extensions=Array.isArray(info?.extensions)?info.extensions.map(x=>x.extension).filter(Boolean):[];
  if(extensions.length)diagnostics.push("Token 扩展："+extensions.join("、"));
- if(info&&!(["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA","TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBKN1e6Q2W6"]).includes(tokenProgram))diagnostics.push("提示：Mint owner 不是已识别的 SPL Token / Token-2022 程序，请人工核对。");
+ if(info&&!(["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA","TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"]).includes(tokenProgram))diagnostics.push("提示：Mint owner 不是已识别的 SPL Token / Token-2022 程序，请人工核对。");
  box.innerHTML="";const title=document.createElement("div");title.style.fontWeight="750";title.textContent=label+" · SHIELD";const report=document.createElement("div");report.className="report";report.textContent="Mint："+mint+"\n\n"+lines.join("\n")+"\n\n"+diagnostics.join("\n");const note=document.createElement("div");note.className="warn";note.textContent="最大 10 个 Token Account 是账户样本，不是按钱包地址聚合的全网前十持有人；不足 10 个样本会明确标注。未知字段不代表安全。Token-2022 扩展权限、LP、蜜罐及卖出限制仍需独立核验。";box.append(title,report,note);
  }catch(err){box.textContent="SHIELD 检查失败："+err.message+"；本次结果未知。"}finally{button.disabled=false;button.textContent=old}}
 
